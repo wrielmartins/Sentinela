@@ -4,47 +4,84 @@ import { useApp } from '../context/AppContext';
 import { Post } from '../types';
 
 const Dashboard: React.FC = () => {
-  const { dayPosts } = useApp();
-  const [filter, setFilter] = useState<'all' | 'external' | 'internal'>('all');
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const { dayPosts, nightPosts, swaps, unitStatus, currentTeam, setCurrentTeam } = useApp();
+  const [activeShift, setActiveShift] = useState<'day' | 'night'>('day');
+  const [viewDate, setViewDate] = useState(new Date());
+  const [currentDate] = useState(new Date());
 
   const handlePrint = () => {
     window.print();
   };
 
-  const filteredPosts = dayPosts.filter(post => {
-    if (filter === 'all') return true;
-    const isExternal = post.location.toLowerCase().includes('externo') || post.name.toLowerCase().includes('guarita');
-    return filter === 'external' ? isExternal : !isExternal;
-  });
+  // Rotation Logic: 29/01/2026 is Team D (A=0, B=1, C=2, D=3)
+  const TEAMS = ['A', 'B', 'C', 'D'];
+  const REF_DATE = new Date(2026, 0, 29); // Jan 29, 2026
 
-  // Calculate stats dynamically
-  const totalAgents = 42;
-  const activePostsCount = dayPosts.filter(p => p.status === 'Ativo').length;
-  const capacity = Math.round((activePostsCount / 20) * 100); // Assuming 20 total posts
+  const getTeamForDate = (date: Date) => {
+    // Normalize dates to midnight for consistent day calculation
+    const d1 = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const d2 = new Date(REF_DATE.getFullYear(), REF_DATE.getMonth(), REF_DATE.getDate());
+    const diffTime = d1.getTime() - d2.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    let index = (3 + diffDays) % 4;
+    while (index < 0) index += 4;
+    return TEAMS[index];
+  };
+
+  const selectedTeam = `Equipe ${getTeamForDate(viewDate)}`;
+
+  // Currently we use mock data for posts, so filteredPosts will just show current posts
+  // In a real app, this would fetch data for viewDate
+  const currentPosts = activeShift === 'day' ? dayPosts : nightPosts;
+
+  // Calculate stats dynamically based on currentPosts (assuming they represent viewDate for now)
+  const effectivePresent = new Set(currentPosts.filter(p => p.status === 'Ativo' && p.officer).map(p => p.officer)).size;
+  const totalSwaps = swaps.filter(s => s.status === 'Aprovado' && s.date === viewDate.toISOString().split('T')[0]).length;
+  const totalAbsences = viewDate.getDate() % 3 === 0 ? 1 : 0; // Simulated logic
+
+  // Calendar rendering helpers
+  const firstDayOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+  const lastDayOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0);
+  const startingDayOfWeek = firstDayOfMonth.getDay();
+  const daysInMonth = lastDayOfMonth.getDate();
+  const prevMonthLastDay = new Date(viewDate.getFullYear(), viewDate.getMonth(), 0).getDate();
+
+  const handleMonthChange = (offset: number) => {
+    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + offset, 1));
+  };
+
+  const isSameDay = (d1: Date, d2: Date) =>
+    d1.getDate() === d2.getDate() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getFullYear() === d2.getFullYear();
+
+  const handleDayClick = (date: Date) => {
+    setViewDate(date);
+    setCurrentTeam(`Equipe ${getTeamForDate(date)}`);
+  };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden relative h-full">
+    <div className="flex-1 flex flex-col overflow-hidden relative h-full bg-[#0A0C10]">
       <header className="flex-shrink-0 bg-[#111318]/95 backdrop-blur-sm border-b border-slate-800 z-10 sticky top-0">
         <div className="px-6 py-4 flex flex-wrap justify-between items-center gap-4">
           <div className="flex flex-col">
-            <h2 className="text-white text-2xl font-bold leading-tight tracking-tight">Painel de Comando</h2>
+            <h2 className="text-white text-2xl font-black leading-tight tracking-tight uppercase">Painel de Comando</h2>
             <div className="flex items-center gap-2 mt-1">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              <p className="text-slate-400 text-sm font-normal">Sistema Operacional • Atualizado às {currentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+              <p className="text-slate-500 text-xs font-bold uppercase tracking-widest leading-none">Status: Operacional • {currentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
             </div>
           </div>
           <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
             <div className="hidden md:flex flex-col items-end mr-2">
-              <p className="text-white text-sm font-bold">{currentDate.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-              <p className="text-slate-400 text-xs capitalize">{currentDate.toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
+              <p className="text-white text-sm font-black uppercase">{viewDate.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+              <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">{viewDate.toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
             </div>
             <button
               onClick={handlePrint}
-              className="flex items-center justify-center rounded-lg h-10 px-4 bg-primary hover:bg-blue-600 text-white text-sm font-bold shadow-lg shadow-blue-900/20 transition-all active:scale-95"
+              className="flex items-center justify-center rounded-lg h-10 px-4 bg-primary hover:bg-blue-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-900/20 transition-all active:scale-95"
             >
-              <span className="material-symbols-outlined text-[18px] mr-2">description</span>
-              Gerar Relatório
+              <span className="material-symbols-outlined text-[18px] mr-2">print</span>
+              Relatório
             </button>
           </div>
         </div>
@@ -55,129 +92,180 @@ const Dashboard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <StatCard
               title="Equipe no Plantão"
-              value="Equipe Bravo"
-              icon="shield_person"
+              value={currentTeam}
+              icon="groups"
               iconColor="text-primary"
-              subtitle="Início 08:00 - Término 08:00 (24h)"
+              subtitle="Escala Ordinária (24h)"
               trend={{ value: 'ATIVO', direction: 'neutral' }}
             />
-            <div className="rounded-xl p-5 bg-[#1A202C] border border-slate-800 shadow-sm relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <span className="material-symbols-outlined text-[64px] text-white">groups</span>
-              </div>
+            <div className="rounded-xl p-5 bg-[#111318] border border-slate-800 shadow-xl relative overflow-hidden group border-l-4 border-l-emerald-500">
               <div className="flex flex-col gap-1 relative z-10">
-                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Efetivo Presente</p>
-                <h3 className="text-white text-2xl font-bold">{totalAgents} Agentes</h3>
-                <div className="w-full bg-slate-700 h-1.5 rounded-full mt-3 overflow-hidden">
-                  <div className="bg-green-500 h-full rounded-full" style={{ width: `${capacity}%` }}></div>
+                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Efetivo Presente</p>
+                <h3 className="text-white text-3xl font-black uppercase mb-2">{effectivePresent} Servidores</h3>
+
+                <div className="flex flex-col gap-2 pt-3 border-t border-slate-800/50 mt-1">
+                  <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    <div className="flex items-center gap-1.5 text-red-500">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                      <span>Faltas: {totalAbsences}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-blue-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                      <span>Permutas: {totalSwaps}</span>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-slate-500 text-sm mt-1 flex justify-between">
-                  <span>{activePostsCount} Postos Cobertos</span>
-                  <span className="text-green-500 font-medium">{capacity}% Cap.</span>
-                </p>
               </div>
             </div>
             <StatCard
               title="Status da Unidade"
-              value="Atenção Normal"
-              icon="warning"
-              iconColor="text-yellow-500"
-              subtitle="Sem ocorrências críticas em aberto"
-              trend={{ value: 'Operacional', direction: 'up' }}
+              value={unitStatus}
+              icon="security"
+              iconColor={unitStatus === 'Atenção Normal' ? 'text-emerald-500' : 'text-red-500'}
+              subtitle="Protocolo de Segurança Ativo"
+              trend={{ value: 'ESTÁVEL', direction: 'neutral' }}
             />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 flex flex-col gap-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <h3 className="text-white text-lg font-bold flex items-center gap-2">
-                  <span className="material-symbols-outlined text-primary">share_location</span>
-                  Distribuição de Postos Ativos
-                </h3>
-                <div className="flex gap-2 w-full sm:w-auto">
-                  <button onClick={() => setFilter('all')} className={`flex-1 sm:flex-none px-3 py-1 text-sm rounded border transition-colors ${filter === 'all' ? 'bg-primary text-white border-primary' : 'bg-[#1A202C] text-slate-400 border-slate-700 hover:text-white'}`}>Todos</button>
-                  <button onClick={() => setFilter('external')} className={`flex-1 sm:flex-none px-3 py-1 text-sm rounded border transition-colors ${filter === 'external' ? 'bg-primary text-white border-primary' : 'bg-[#1A202C] text-slate-400 border-slate-700 hover:text-white'}`}>Externo</button>
-                  <button onClick={() => setFilter('internal')} className={`flex-1 sm:flex-none px-3 py-1 text-sm rounded border transition-colors ${filter === 'internal' ? 'bg-primary text-white border-primary' : 'bg-[#1A202C] text-slate-400 border-slate-700 hover:text-white'}`}>Interno</button>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-white text-lg font-black uppercase tracking-tighter flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary">location_on</span>
+                    postos ativos
+                  </h3>
+                  <div className="flex bg-[#111318] rounded-full p-1 border border-slate-800">
+                    <button
+                      onClick={() => setActiveShift('day')}
+                      className={`px-3 py-1 text-[10px] font-black uppercase rounded-full transition-all ${activeShift === 'day' ? 'bg-primary text-white' : 'text-slate-500 hover:text-white'}`}
+                    >Diurno</button>
+                    <button
+                      onClick={() => setActiveShift('night')}
+                      className={`px-3 py-1 text-[10px] font-black uppercase rounded-full transition-all ${activeShift === 'night' ? 'bg-primary text-white' : 'text-slate-500 hover:text-white'}`}
+                    >Noturno</button>
+                  </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredPosts.map(post => (
-                  <div key={post.id} className="bg-[#1A202C] rounded-xl p-4 border border-slate-800 hover:border-slate-600 transition-colors">
-                    <div className="flex justify-between items-start mb-4 border-b border-slate-800 pb-3">
+                {currentPosts.filter(p => p.officer).map(post => (
+                  <div key={post.id} className="bg-[#111318] rounded-xl p-4 border border-slate-800 hover:border-primary/30 transition-all group">
+                    <div className="flex justify-between items-start mb-4 border-b border-slate-800/50 pb-3">
                       <div className="flex items-center gap-3">
-                        <div className="bg-slate-700 p-2 rounded-lg text-white">
-                          <span className="material-symbols-outlined">{post.icon}</span>
+                        <div className="bg-slate-800/50 p-2 rounded-lg text-primary group-hover:scale-110 transition-transform">
+                          <span className="material-symbols-outlined text-[20px]">{post.icon}</span>
                         </div>
                         <div>
-                          <h4 className="text-white font-bold text-sm">{post.name}</h4>
-                          <p className="text-slate-400 text-xs">{post.location}</p>
+                          <h4 className="text-white font-black text-xs uppercase tracking-tight">{post.name}</h4>
+                          <p className="text-slate-500 text-[10px] font-bold uppercase">{post.location}</p>
                         </div>
                       </div>
-                      <span className="flex h-3 w-3 relative">
-                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${post.status === 'Ativo' ? 'bg-green-400' : 'bg-slate-500'}`}></span>
-                        <span className={`relative inline-flex rounded-full h-3 w-3 ${post.status === 'Ativo' ? 'bg-green-500' : 'bg-slate-500'}`}></span>
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase border ${post.status === 'Ativo' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-slate-500/10 text-slate-500 border-slate-500/20'}`}>
+                        {post.status}
                       </span>
                     </div>
                     <div className="space-y-3">
-                      <div className="flex items-center gap-3 bg-[#111318] p-2 rounded-lg border border-slate-800/50">
-                        <img src={post.officerAvatar} alt={post.officer} className="rounded-full h-8 w-8 ring-1 ring-slate-600" />
+                      <div className="flex items-center gap-3 bg-[#0A0C10] p-2.5 rounded-lg border border-slate-800/50">
+                        <img src={post.officerAvatar} alt={post.officer} className="rounded-full h-9 w-9 ring-2 ring-slate-800 group-hover:ring-primary/50 transition-all" />
                         <div className="flex flex-col">
-                          <p className="text-white text-sm font-medium">{post.officer}</p>
-                          <p className="text-slate-500 text-[10px]">{post.weapon}</p>
+                          <p className="text-white text-sm font-black uppercase leading-tight">{post.officer}</p>
+                          <p className="text-red-500 text-[9px] font-bold italic mt-0.5 uppercase tracking-wide">
+                            {post.equipment?.join(' / ') || post.weapon || '-'}
+                          </p>
                         </div>
                       </div>
                     </div>
                   </div>
                 ))}
+                {currentPosts.filter(p => p.officer).length === 0 && (
+                  <div className="col-span-full py-12 flex flex-col items-center justify-center border-2 border-dashed border-slate-800 rounded-2xl bg-[#111318]/50">
+                    <span className="material-symbols-outlined text-slate-700 text-[48px] mb-2">event_busy</span>
+                    <p className="text-slate-500 text-xs font-bold uppercase">Nenhum posto preenchido nesta escala</p>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-white text-lg font-bold flex items-center gap-2">
+                <h3 className="text-white text-lg font-black uppercase tracking-tighter flex items-center gap-2">
                   <span className="material-symbols-outlined text-primary">calendar_month</span>
                   Escala de Serviço
                 </h3>
-                <button className="text-primary hover:text-blue-400 text-xs font-bold">VER COMPLETO</button>
               </div>
-              <div className="bg-[#1A202C] rounded-xl p-4 border border-slate-800 h-full flex flex-col">
-                <div className="flex items-center justify-between mb-4">
-                  <button className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700 transition-colors">
-                    <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+              <div className="bg-[#111318] rounded-xl p-4 border border-slate-800 h-full flex flex-col shadow-2xl">
+                <div className="flex items-center justify-between mb-6">
+                  <button
+                    onClick={() => handleMonthChange(-1)}
+                    className="text-slate-500 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">chevron_left</span>
                   </button>
-                  <p className="text-white text-base font-bold">Novembro 2023</p>
-                  <button className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700 transition-colors">
-                    <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                  <p className="text-white text-sm font-black uppercase tracking-widest px-4 text-center">
+                    {viewDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                  </p>
+                  <button
+                    onClick={() => handleMonthChange(1)}
+                    className="text-slate-500 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">chevron_right</span>
                   </button>
                 </div>
-                <div className="grid grid-cols-7 mb-2">
+                <div className="grid grid-cols-7 mb-4">
                   {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((day, i) => (
-                    <span key={i} className="text-slate-500 text-[10px] text-center font-bold">{day}</span>
+                    <span key={i} className="text-slate-600 text-[10px] text-center font-black">{day}</span>
                   ))}
                 </div>
-                <div className="grid grid-cols-7 gap-y-2 gap-x-1 flex-1 content-start">
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                    <div key={day} className="relative flex flex-col items-center">
-                      <button className={`text-sm py-1 rounded w-8 h-8 flex items-center justify-center ${day === 14 ? 'bg-primary text-white font-bold shadow-lg shadow-blue-500/30' : 'text-slate-400 hover:bg-slate-700'}`}>
-                        {day}
-                      </button>
-                      {day === 14 && <span className="absolute -bottom-1 w-1 h-1 bg-green-400 rounded-full"></span>}
+                <div className="grid grid-cols-7 gap-y-3 gap-x-1 flex-1 content-start">
+                  {Array.from({ length: startingDayOfWeek }).map((_, i) => (
+                    <div key={`prev-${i}`} className="h-10 opacity-20 flex items-center justify-center text-[10px] text-slate-700 font-bold">
+                      {prevMonthLastDay - startingDayOfWeek + i + 1}
                     </div>
                   ))}
+
+                  {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                    const date = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+                    const team = getTeamForDate(date);
+                    const isToday = isSameDay(date, new Date());
+                    const isSelected = isSameDay(date, viewDate);
+
+                    return (
+                      <button
+                        key={day}
+                        onClick={() => handleDayClick(date)}
+                        className={`relative flex flex-col items-center justify-center h-10 rounded-lg transition-all group ${isSelected ? 'bg-primary text-white shadow-lg shadow-primary/30' :
+                          isToday ? 'border border-primary/50 text-white' : 'text-slate-400 hover:bg-slate-800'
+                          }`}
+                      >
+                        <span className={`text-[11px] font-black ${isSelected ? 'text-white' : isToday ? 'text-primary' : ''}`}>
+                          {day}
+                        </span>
+                        <span className={`text-[8px] font-black uppercase mt-0.5 ${isSelected ? 'text-white/70' :
+                          team === 'A' ? 'text-emerald-500' :
+                            team === 'B' ? 'text-blue-500' :
+                              team === 'C' ? 'text-yellow-500' : 'text-purple-500'
+                          }`}>
+                          {team}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-                {/* Fixed content area to prevent layout jump */}
-                <div className="mt-4 pt-4 border-t border-slate-800 flex flex-col gap-2 min-h-[100px]">
-                  <p className="text-slate-400 text-xs font-semibold mb-1">PRÓXIMOS PLANTÕES</p>
-                  <div className="flex items-center justify-between p-2 bg-[#111318] rounded border border-slate-800/50">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-8 bg-yellow-500 rounded-sm"></div>
+
+                <div className="mt-6 pt-6 border-t border-slate-800/80 flex flex-col gap-3">
+                  <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Equipe do Dia Selecionado</p>
+                  <div className="flex items-center justify-between p-3 bg-[#0A0C10] rounded-xl border border-slate-800 group hover:border-primary/50 transition-all cursor-pointer">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center text-primary font-black text-xl">
+                        {getTeamForDate(viewDate)}
+                      </div>
                       <div className="flex flex-col">
-                        <span className="text-white text-xs font-bold">15 Nov (Qua)</span>
-                        <span className="text-slate-500 text-[10px]">Equipe Charlie</span>
+                        <span className="text-white text-xs font-black uppercase tracking-tight">{selectedTeam}</span>
+                        <span className="text-slate-500 text-[9px] font-bold uppercase">Plantão Ordinário 24h</span>
                       </div>
                     </div>
-                    <span className="text-slate-400 text-[10px]">08:00</span>
+                    <span className="material-symbols-outlined text-slate-600 group-hover:text-primary transition-colors text-[20px]">arrow_forward</span>
                   </div>
                 </div>
               </div>

@@ -3,7 +3,7 @@ import { useLocation, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
 const Sidebar: React.FC = () => {
-  const { logout, sidebarOpen, closeSidebar, user } = useApp();
+  const { logout, sidebarOpen, closeSidebar, user, updateUser, currentTeam } = useApp();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
@@ -21,7 +21,6 @@ const Sidebar: React.FC = () => {
     { path: '/night-shift', icon: 'bedtime', label: 'Escala Noturna' },
     { path: '/swaps', icon: 'swap_horiz', label: 'Permutas' },
     { path: '/reports', icon: 'warning', label: 'Ocorrências', badge: 2 },
-    { path: '/profile', icon: 'person', label: 'Perfil e Avisos' },
   ];
 
   return (
@@ -40,8 +39,11 @@ const Sidebar: React.FC = () => {
             <span className="material-symbols-outlined">security</span>
           </div>
           <div className="flex flex-col overflow-hidden">
-            <h1 className="text-white text-base font-bold leading-tight tracking-tight truncate">Gestão Policial</h1>
-            <p className="text-slate-400 text-xs font-medium uppercase tracking-wider truncate">Tucuruí - PA</p>
+            <h1 className="text-white text-base font-black leading-tight tracking-tight truncate uppercase">Gestão Policial</h1>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></span>
+              <p className="text-emerald-500 text-[10px] font-black uppercase tracking-widest truncate">{currentTeam}</p>
+            </div>
           </div>
           <button onClick={closeSidebar} className="ml-auto md:hidden text-slate-400 hover:text-white">
             <span className="material-symbols-outlined">close</span>
@@ -55,8 +57,8 @@ const Sidebar: React.FC = () => {
               to={item.path}
               onClick={() => { if (window.innerWidth < 768) closeSidebar() }}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group shrink-0 ${isActive(item.path)
-                  ? 'bg-primary text-white shadow-md shadow-primary/20'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
             >
               <span className={`material-symbols-outlined text-[22px] ${!isActive(item.path) && 'group-hover:text-primary transition-colors'}`}>
@@ -72,18 +74,6 @@ const Sidebar: React.FC = () => {
               </div>
             </Link>
           ))}
-
-          <div className="my-2 border-t border-slate-800 mx-2"></div>
-
-          <Link
-            to="/request-swap"
-            onClick={() => { if (window.innerWidth < 768) closeSidebar() }}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors group shrink-0 ${isActive('/request-swap') ? 'bg-white/5 text-white' : ''
-              }`}
-          >
-            <span className="material-symbols-outlined text-[22px] group-hover:text-primary transition-colors">edit_calendar</span>
-            <span className="text-sm font-medium">Solicitar Permuta</span>
-          </Link>
         </nav>
 
         <div className="p-4 border-t border-slate-800">
@@ -92,11 +82,13 @@ const Sidebar: React.FC = () => {
             <span>Novo Plantão</span>
           </Link>
           <div className="flex items-center gap-3 px-1">
-            <img src={user?.avatar || "https://picsum.photos/32/32?random=1"} alt="Avatar" className="rounded-full h-8 w-8 ring-2 ring-slate-700 shrink-0" />
-            <div className="flex flex-col overflow-hidden">
-              <p className="text-white text-xs font-semibold truncate">{user?.name || 'Usuário'}</p>
-              <p className="text-slate-500 text-[10px] truncate">{user?.role || 'Visitante'}</p>
-            </div>
+            <Link to="/profile" className="flex items-center gap-3 flex-1 overflow-hidden group">
+              <img src={user?.avatar || "https://picsum.photos/32/32?random=1"} alt="Avatar" className="rounded-full h-8 w-8 ring-2 ring-slate-700 group-hover:ring-primary transition-all shrink-0" />
+              <div className="flex flex-col overflow-hidden">
+                <p className="text-white text-xs font-semibold truncate group-hover:text-primary transition-colors">{user?.name || 'Usuário'}</p>
+                <p className="text-slate-500 text-[10px] truncate uppercase font-bold tracking-tighter">Ver Perfil</p>
+              </div>
+            </Link>
             <button onClick={logout} className="ml-auto text-slate-500 hover:text-white shrink-0" title="Sair do sistema">
               <span className="material-symbols-outlined text-[18px]">logout</span>
             </button>

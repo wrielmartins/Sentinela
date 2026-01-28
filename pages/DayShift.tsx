@@ -1,189 +1,461 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  DragStartEvent,
+  DragEndEvent,
+  useDroppable,
+  useDraggable
+} from '@dnd-kit/core';
+import {
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import classNames from 'classnames';
+
 import PageHeader from '../components/PageHeader';
-import StatCard from '../components/StatCard';
-import StatusBadge from '../components/StatusBadge';
 import Modal from '../components/Modal';
 import { useApp } from '../context/AppContext';
 import { Post } from '../types';
+import { canEditScale } from '../utils/permissions';
 
-const DayShift: React.FC = () => {
-  const { dayPosts, updatePost } = useApp();
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isLocked, setIsLocked] = useState(false);
+// --- Constants & Types ---
 
-  // Edit Form State
-  const [editOfficerName, setEditOfficerName] = useState('');
-  const [editStatus, setEditStatus] = useState<Post['status']>('Ativo');
+const GROUPS = [
+  { id: 'Comando', title: 'COMANDO', icon: 'shield_person' },
+  { id: 'Supervisor', title: 'SUPERVISOR', icon: 'supervisor_account' },
+  { id: 'Operacional Bloco', title: 'OPERACIONAL BLOCO', icon: 'grid_view' },
+  { id: 'Vigilância e Sistemas', title: 'VIGILÂNCIA E SISTEMAS', icon: 'videocam' },
+  { id: 'Unidade de Reinserção (Semiaberto)', title: 'UNIDADE DE REINSERÇÃO (SEMIABERTO)', icon: 'lock_open' },
+  { id: 'Logística e Externo', title: 'LOGÍSTICA E EXTERNO', icon: 'local_shipping' },
+  { id: 'Grade de Turnos', title: 'GRADE DE TURNOS (MONITORAMENTO E PORTARIA)', icon: 'schedule' },
+] as const;
 
-  const handleEditClick = (post: Post) => {
-    setSelectedPost(post);
-    setEditOfficerName(post.officer);
-    setEditStatus(post.status);
-    setIsEditModalOpen(true);
-  };
+const EQUIPMENT_OPTIONS = ['556', 'CAL. 12', 'Mão Livre', 'C.C (Câmera Corporal)', 'Chamada'];
+const INTERVALS = [
+  '08:00h às 10:30h', '10:30h às 13:00h', '13:00h às 15:30h', '15:30h às 18:00h'
+];
 
-  const handleSaveEdit = () => {
-    if (selectedPost) {
-      updatePost('day', selectedPost.id, {
-        officer: editOfficerName,
-        status: editStatus
-      });
-      setIsEditModalOpen(false);
-      setSelectedPost(null);
-    }
-  };
+type GroupType = typeof GROUPS[number]['id'] | 'Outros';
 
-  const handlePrint = () => window.print();
-  const toggleLock = () => setIsLocked(!isLocked);
+// --- Draggable Post Component ---
+interface DraggablePostProps {
+  post: Post;
+  isOverlay?: boolean;
+  onEdit: (post: Post) => void;
+  onDelete: (id: string) => void;
+  isDuplicate: boolean;
+  isLocked: boolean;
+  canEdit: boolean;
+}
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case 'Ativo': return 'active';
-      case 'Em Pausa': return 'pending';
-      case 'Em Trânsito': return 'urgent';
-      case 'Descanso': return 'normal';
-      default: return 'normal';
-    }
+const DraggablePostItem: React.FC<DraggablePostProps> = ({ post, isOverlay, onEdit, onDelete, isDuplicate, isLocked, canEdit }) => {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: post.id,
+    data: post,
+    disabled: !canEdit || isLocked
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden">
-      <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-4 py-8 lg:px-8 overflow-y-auto">
-        <PageHeader
-          title="Escala Diurna"
-          subtitle="Gestão Operacional de Plantão - Complexo Penitenciário"
-          badge={{ text: isLocked ? 'BLOQUEADO' : 'EM ANDAMENTO', variant: isLocked ? 'error' : 'success', pulse: !isLocked }}
-          actions={
-            <>
-              <button onClick={handlePrint} className="flex min-w-[120px] cursor-pointer items-center justify-center gap-2 rounded-lg h-10 px-4 border border-slate-300 dark:border-slate-700 bg-transparent text-slate-700 dark:text-white text-sm font-bold hover:bg-slate-100 dark:hover:bg-surface-dark transition-all">
-                <span className="material-symbols-outlined text-[20px]">print</span>
-                <span>Imprimir</span>
-              </button>
-              <button
-                onClick={toggleLock}
-                className={`flex min-w-[120px] cursor-pointer items-center justify-center gap-2 rounded-lg h-10 px-4 text-sm font-bold border transition-all ${isLocked ? 'bg-red-500 text-white border-red-500' : 'bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/20'}`}
-              >
-                <span className="material-symbols-outlined text-[20px]">{isLocked ? 'lock_open' : 'lock'}</span>
-                <span>{isLocked ? 'Desbloquear' : 'Bloquear'}</span>
-              </button>
-              <button className="flex min-w-[160px] cursor-pointer items-center justify-center gap-2 rounded-lg h-10 px-4 bg-primary hover:bg-primary-dark shadow-lg shadow-primary/30 text-white text-sm font-bold transition-all">
-                <span className="material-symbols-outlined text-[20px]">edit_square</span>
-                <span>Modificar Escala</span>
-              </button>
-            </>
-          }
-          className="mb-8"
-        />
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-          <StatCard title="Data Atual" value="04 Out 2023" icon="calendar_today" subtitle="Quarta-feira" />
-          <StatCard title="Plantão Ativo" value="Equipe Charlie" icon="groups" subtitle="Turno A" accentRight />
-          <StatCard title="Responsável" value="Insp. Silva" icon="shield_person" subtitle="Matrícula: 8492-B" />
-          <StatCard title="Efetivo Total" value="42 Agentes" icon="badge" progress={95} progressColor="bg-green-500" />
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={classNames(
+        "relative flex flex-col md:flex-row md:items-center p-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1a202c] group transition-colors touch-manipulation",
+        {
+          "opacity-30": isDragging,
+          "shadow-xl ring-2 ring-primary z-50 rounded-lg": isOverlay,
+          "hover:bg-slate-50 dark:hover:bg-slate-800": !isOverlay && !isLocked && canEdit,
+          "bg-red-50 dark:bg-red-900/10": isDuplicate && !isDragging
+        }
+      )}
+    >
+      {/* Warning Indicator */}
+      {isDuplicate && (
+        <div className="absolute top-1 right-1 md:top-auto md:right-auto md:left-2 text-red-500 animate-pulse" title="Servidor Duplicado na Escala!">
+          <span className="material-symbols-outlined text-[18px]">warning</span>
         </div>
+      )}
 
-        <div className="flex flex-col gap-4 mb-10">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <span className="h-6 w-1 rounded-full bg-primary block"></span>
-              Unidade Principal
-            </h3>
-            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{dayPosts.length} postos alocados</span>
-          </div>
-          <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[800px]">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-[#15181e] border-b border-slate-200 dark:border-slate-700">
-                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[25%]">Posto de Serviço</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[25%]">Armamento</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[30%]">Agente Responsável</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[10%]">Status</th>
-                    <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[10%]">Ação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {dayPosts.map((post) => (
-                    <tr key={post.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex size-8 shrink-0 items-center justify-center rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                            <span className="material-symbols-outlined text-lg">{post.icon}</span>
-                          </div>
-                          <span className="font-bold text-slate-900 dark:text-white">{post.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center gap-1.5 rounded bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                          {post.weapon}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <img src={post.officerAvatar} alt="Avatar" className="rounded-full size-8 bg-slate-200" />
-                          <div>
-                            <p className="text-sm font-medium text-slate-900 dark:text-white">{post.officer}</p>
-                            <p className="text-xs text-slate-500">Posto Fixo</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <StatusBadge status={getStatusVariant(post.status) as any} label={post.status} />
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => handleEditClick(post)}
-                          disabled={isLocked}
-                          className={`text-slate-400 hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
-                        >
-                          <span className="material-symbols-outlined">edit</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+      {/* Post Name (Job Title) */}
+      <div className="md:w-[30%] font-bold text-slate-800 dark:text-slate-200 text-sm uppercase md:pl-8">
+        {post.name}
       </div>
 
-      {/* Edit Modal */}
+      {/* Officer Name & Equipment */}
+      <div className="md:w-[50%] flex flex-col justify-center">
+        <span className={classNames("font-black text-slate-900 dark:text-white uppercase text-base", { "text-red-600 dark:text-red-400": isDuplicate })}>
+          {post.officer}
+        </span>
+        {post.equipment && post.equipment.length > 0 && (
+          <div className="flex flex-wrap gap-x-2 text-xs font-bold text-red-600 dark:text-red-400 italic mt-0.5">
+            {post.equipment.map((eq, idx) => (
+              <span key={idx}>{eq}</span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Actions */}
+      {!isLocked && canEdit && (
+        <div className="hidden group-hover:flex md:w-[20%] items-center justify-end gap-2 text-right">
+          <button onClick={(e) => { e.stopPropagation(); onEdit(post); }} className="p-1 text-slate-400 hover:text-primary transition-colors">
+            <span className="material-symbols-outlined text-[18px]">edit</span>
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); if (window.confirm('Remover este posto?')) onDelete(post.id); }}
+            className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[18px]">delete</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- Droppable Zone Component ---
+interface DroppableGroupProps {
+  group: typeof GROUPS[number];
+  posts: Post[];
+  onAdd: (groupId: GroupType) => void;
+  onEdit: (post: Post) => void;
+  onDelete: (id: string) => void;
+  duplicates: Set<string>;
+  isLocked: boolean;
+  canEdit: boolean;
+}
+
+const DroppableGroup: React.FC<DroppableGroupProps> = ({ group, posts, onAdd, onEdit, onDelete, duplicates, isLocked, canEdit }) => {
+  const { setNodeRef, isOver } = useDroppable({
+    id: group.id,
+    disabled: !canEdit || isLocked
+  });
+
+  return (
+    <div ref={setNodeRef} className={classNames("border-2 border-slate-900 dark:border-slate-500 mb-[-2px] last:mb-0 transition-colors", { "bg-blue-50/50 dark:bg-blue-900/10 border-blue-500": isOver })}>
+      {/* Group Header */}
+      <div className="bg-slate-200 dark:bg-slate-700 p-2 flex justify-between items-center border-b border-slate-900 dark:border-slate-500">
+        <h3 className="font-black text-slate-900 dark:text-white uppercase text-sm tracking-wide flex items-center gap-2">
+          {group.title}
+        </h3>
+        {!isLocked && canEdit && (
+          <button onClick={() => onAdd(group.id as GroupType)} className="text-[10px] font-bold bg-slate-900 dark:bg-black text-white px-2 py-1 rounded hover:bg-slate-700 uppercase">
+            + Adicionar
+          </button>
+        )}
+      </div>
+
+      {/* Content Area */}
+      <div className="bg-white dark:bg-[#111318] min-h-[3rem]">
+        {posts.map(post => (
+          <DraggablePostItem
+            key={post.id}
+            post={post}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            isDuplicate={duplicates.has(post.officer)}
+            isLocked={isLocked}
+            canEdit={canEdit}
+          />
+        ))}
+        {posts.length === 0 && (
+          <div className="p-4 text-center text-slate-400 text-xs italic uppercase">
+            {canEdit ? 'Vazio - Arraste servidor para cá' : '— Vazio —'}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+
+// --- Main Component ---
+const DayShift: React.FC = () => {
+  const { dayPosts, addPost, updatePost, deletePost, user } = useApp();
+  const [isLocked, setIsLocked] = useState(false);
+
+  const canEdit = canEditScale(user, 'Charlie'); // 'Charlie' is mock team for now
+
+  // DnD State
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+
+  // Duplicate Detection
+  const duplicates = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const dups = new Set<string>();
+    dayPosts.forEach(p => {
+      if (p.officer) { // only count if name exists
+        counts[p.officer] = (counts[p.officer] || 0) + 1;
+        if (counts[p.officer] > 1) dups.add(p.officer);
+      }
+    });
+    return dups;
+  }, [dayPosts]);
+
+  // Form State
+  const [formData, setFormData] = useState<{
+    name: string;
+    officer: string;
+    group: GroupType;
+    equipment: string[];
+    status: Post['status'];
+  }>({
+    name: '',
+    officer: '',
+    group: 'Comando',
+    equipment: [],
+    status: 'Ativo',
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // --- Handlers ---
+
+  const handleDragStart = (event: DragStartEvent) => {
+    if (!isLocked && canEdit) setActiveId(event.active.id as string);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
+    if (isLocked) return;
+
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      // If dropped over a GROUP (droppable container)
+      const groupId = over.id as GroupType;
+      const post = dayPosts.find(p => p.id === active.id);
+
+      if (post && post.group !== groupId) {
+        // Move to new group
+        updatePost('day', post.id, { group: groupId });
+      }
+    }
+  };
+
+  const handleAddClick = (group: GroupType) => {
+    setModalMode('add');
+    setFormData({
+      name: '',
+      officer: '',
+      group: group,
+      equipment: [],
+      status: 'Ativo'
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleEditClick = (post: Post) => {
+    setModalMode('edit');
+    setSelectedPostId(post.id);
+    setFormData({
+      name: post.name,
+      officer: post.officer,
+      group: post.group,
+      equipment: post.equipment || [],
+      status: post.status,
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSave = () => {
+    const postData: Post = {
+      id: modalMode === 'edit' && selectedPostId ? selectedPostId : Math.random().toString(36).substr(2, 9),
+      name: formData.name.toUpperCase(), // Enforce Uppercase
+      location: formData.group,
+      officer: formData.officer.toUpperCase(), // Enforce Uppercase
+      officerAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.officer)}&background=random`,
+      equipment: formData.equipment,
+      status: formData.status,
+      icon: 'person',
+      group: formData.group,
+    };
+
+    if (modalMode === 'add') {
+      addPost('day', postData);
+    } else if (selectedPostId) {
+      updatePost('day', selectedPostId, postData);
+    }
+    setIsModalOpen(false);
+  };
+
+  const toggleEquipment = (eq: string) => {
+    setFormData(prev => {
+      const exists = prev.equipment.includes(eq);
+      return {
+        ...prev,
+        equipment: exists
+          ? prev.equipment.filter(e => e !== eq)
+          : [...prev.equipment, eq]
+      };
+    });
+  };
+
+  const activePost = activeId ? dayPosts.find(p => p.id === activeId) : null;
+
+  return (
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-white dark:bg-[#111318]">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-8 lg:px-8 overflow-y-auto pb-24">
+          <PageHeader
+            title="ESCALA ORDINÁRIA DIURNA"
+            subtitle="UNIDADE DE CUSTÓDIA E REINSERÇÃO"
+            badge={{ text: isLocked ? 'FINALIZADA' : 'EDICAO', variant: isLocked ? 'error' : 'success', pulse: !isLocked }}
+            actions={
+              <div className="flex gap-2 print:hidden">
+                <button onClick={() => window.print()} className="bg-slate-100 hover:bg-slate-200 text-slate-900 px-3 py-1 rounded text-sm font-bold uppercase transition-colors">
+                  Imprimir
+                </button>
+                {canEdit && (
+                  <button onClick={() => setIsLocked(!isLocked)} className={`px-3 py-1 rounded text-sm font-bold uppercase transition-colors ${isLocked ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'}`}>
+                    {isLocked ? 'Desbloquear' : 'Bloquear'}
+                  </button>
+                )}
+              </div>
+            }
+            className="mb-6 border-b-2 border-slate-900 dark:border-white pb-4"
+          />
+
+          {/* --- Document Table Layout --- */}
+          <div className="flex flex-col border-2 border-slate-900 dark:border-slate-500 bg-white dark:bg-[#111318] shadow-2xl">
+            {GROUPS.map(group => (
+              <DroppableGroup
+                key={group.id}
+                group={group}
+                posts={dayPosts.filter(p => p.group === group.id)}
+                onAdd={handleAddClick}
+                onEdit={handleEditClick}
+                onDelete={(id) => deletePost('day', id)}
+                duplicates={duplicates}
+                isLocked={isLocked}
+                canEdit={canEdit}
+              />
+            ))}
+          </div>
+
+        </div>
+
+        {/* Drag Overlay for smooth visual feedback */}
+        <DragOverlay>
+          {activePost ? (
+            <div className="opacity-90 rotate-2 cursor-grabbing">
+              <div className="p-3 bg-white dark:bg-slate-800 shadow-2xl rounded-lg border-2 border-primary flex flex-col">
+                <span className="font-bold text-sm uppercase text-slate-500">{activePost.name}</span>
+                <span className="font-black text-lg uppercase text-slate-900 dark:text-white">{activePost.officer}</span>
+              </div>
+            </div>
+          ) : null}
+        </DragOverlay>
+
+      </DndContext>
+
+      {/* --- Modal Form --- */}
       <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title={`Editar ${selectedPost?.name}`}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={modalMode === 'add' ? 'ADICIONAR SERVIDOR' : 'EDITAR POSTO'}
         actions={
           <>
-            <button onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors">Cancelar</button>
-            <button onClick={handleSaveEdit} className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-dark rounded-lg shadow-lg shadow-primary/20 transition-all">Salvar Alterações</button>
+            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors uppercase">Cancelar</button>
+            <button onClick={handleSave} className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-dark rounded-lg shadow-lg shadow-primary/20 transition-all uppercase font-bold">
+              {modalMode === 'add' ? 'Adicionar' : 'Salvar'}
+            </button>
           </>
         }
       >
         <div className="flex flex-col gap-4">
+          {/* Quick Buttons for Shift Grid */}
+          {formData.group === 'Grade de Turnos' && (
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-900/30">
+              <p className="text-xs font-bold text-blue-700 dark:text-blue-300 mb-2 uppercase">Intervalos Rápidos:</p>
+              <div className="flex flex-wrap gap-2">
+                {['MONITORAMENTO', 'PORTARIA EXT.'].map(p => (
+                  INTERVALS.map(int => (
+                    <button
+                      key={`${p}-${int}`}
+                      onClick={() => setFormData(prev => ({ ...prev, name: `${p} (${int})` }))}
+                      className="text-[10px] bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-800 text-slate-700 dark:text-slate-300 px-2 py-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors uppercase"
+                    >
+                      {p.split(' ')[0]} - {int.split(' ')[0]}
+                    </button>
+                  ))
+                ))}
+              </div>
+            </div>
+          )}
+
           <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Agente Responsável</span>
+            <span className="text-xs font-bold uppercase text-slate-500">Servidor (Guerra)</span>
             <input
               type="text"
-              value={editOfficerName}
-              onChange={(e) => setEditOfficerName(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+              value={formData.officer}
+              onChange={(e) => setFormData(prev => ({ ...prev, officer: e.target.value }))}
+              placeholder="EX: SILVA"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-3 text-base font-bold uppercase text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+              autoFocus
             />
           </label>
+
           <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Status Operacional</span>
-            <select
-              value={editStatus}
-              onChange={(e) => setEditStatus(e.target.value as any)}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none"
-            >
-              <option value="Ativo">Ativo</option>
-              <option value="Em Pausa">Em Pausa</option>
-              <option value="Em Trânsito">Em Trânsito</option>
-              <option value="Descanso">Descanso</option>
-            </select>
+            <span className="text-xs font-bold uppercase text-slate-500">Posto / Função</span>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              placeholder="EX: GUARITA G1"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-3 text-sm font-bold uppercase text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+            />
+            {formData.group === 'Comando' && (
+              <div className="flex gap-2 mt-1">
+                <button onClick={() => setFormData(prev => ({ ...prev, name: 'DIRETOR' }))} className="text-[10px] font-bold uppercase text-primary border border-primary px-2 py-1 rounded">Diretor</button>
+                <button onClick={() => setFormData(prev => ({ ...prev, name: 'GERENTE DE SEGURANÇA' }))} className="text-[10px] font-bold uppercase text-primary border border-primary px-2 py-1 rounded">Gerente</button>
+              </div>
+            )}
           </label>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-bold uppercase text-slate-500">Equipamento</span>
+            <div className="grid grid-cols-2 gap-2">
+              {EQUIPMENT_OPTIONS.map(eq => (
+                <label key={eq} className={`flex items-center gap-2 p-2 border rounded-lg cursor-pointer transition-colors ${formData.equipment.includes(eq) ? 'bg-primary/10 border-primary' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                  <input
+                    type="checkbox"
+                    checked={formData.equipment.includes(eq)}
+                    onChange={() => toggleEquipment(eq)}
+                    className="rounded border-slate-300 text-primary focus:ring-primary"
+                  />
+                  <span className={`text-sm font-bold uppercase ${formData.equipment.includes(eq) ? 'text-primary' : 'text-slate-700 dark:text-slate-300'}`}>{eq}</span>
+                </label>
+              ))}
+            </div>
+          </div>
         </div>
       </Modal>
     </div>

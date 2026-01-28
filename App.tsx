@@ -7,7 +7,6 @@ import {
   DayShift,
   NightShift,
   SwapList,
-  SwapRequest,
   Reports,
   Profile,
   Login
@@ -39,7 +38,6 @@ const AppContent: React.FC = () => {
             <Route path="/day-shift" element={<DayShift />} />
             <Route path="/night-shift" element={<NightShift />} />
             <Route path="/swaps" element={<SwapList />} />
-            <Route path="/request-swap" element={<SwapRequest />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/profile" element={<Profile />} />
           </Routes>

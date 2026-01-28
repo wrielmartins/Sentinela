@@ -1,7 +1,10 @@
+export type UserRole = 'Admin' | 'Diretor' | 'Gerente' | 'Supervisor' | 'Policial';
+
 export interface User {
   id: string;
   name: string;
-  role: string;
+  role: UserRole;
+  team?: 'Alpha' | 'Bravo' | 'Charlie' | 'Delta'; // Teams for logic
   avatar: string;
   badge?: string;
   email?: string;
@@ -42,8 +45,10 @@ export interface Post {
   location: string;
   officer: string;
   officerAvatar: string;
-  weapon: string;
+  weapon?: string; // Kept for backward compatibility if needed, but equipment is preferred
+  equipment: string[];
   status: 'Ativo' | 'Em Pausa' | 'Em Trânsito' | 'Posto Anterior' | 'Descanso';
   icon: string;
-  shift?: 'A' | 'B' | 'C'; // For rotation tables
+  group: 'Comando' | 'Supervisor' | 'Operacional Bloco' | 'Vigilância e Sistemas' | 'Unidade de Reinserção (Semiaberto)' | 'Logística e Externo' | 'Grade de Turnos' | 'Outros' | 'COMANDO' | 'SUPERVISOR' | 'OPERACIONAL BLOCO' | 'VIGILÂNCIA E SISTEMAS' | 'UNIDADE DE REINSERÇÃO (SEMIABERTO)' | 'LOGÍSTICA E EXTERNO' | 'GRADE DE TURNOS (MONITORAMENTO E PORTARIA)';
+  shift?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'; // Extended specifically for grade de turnos if needed
 }
