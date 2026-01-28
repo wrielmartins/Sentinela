@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
 const Sidebar: React.FC = () => {
-  const { logout, sidebarOpen, closeSidebar, user, updateUser, currentTeam } = useApp();
+  const { logout, sidebarOpen, closeSidebar, user, currentTeam } = useApp();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;

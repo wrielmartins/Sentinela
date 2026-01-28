@@ -39,7 +39,7 @@ const Reports: React.FC = () => {
     setNewSeverity('Normal');
   };
 
-  const getSeverityBadge = (severity: string) => {
+  const getSeverityBadge = (severity: string): 'critical' | 'urgent' | 'normal' => {
     switch (severity) {
       case 'Crítico': return 'critical';
       case 'Urgente': return 'urgent';
@@ -47,7 +47,7 @@ const Reports: React.FC = () => {
     }
   };
 
-  const getCategoryBadge = (category: string) => {
+  const getCategoryBadge = (category: string): 'medical' | 'security' | 'info' => {
     switch (category) {
       case 'Médico': return 'medical';
       case 'Segurança': return 'security';
@@ -118,14 +118,14 @@ const Reports: React.FC = () => {
                     <tr key={incident.id} className="group hover:bg-slate-50 dark:hover:bg-surface-dark/50 transition-colors">
                       <td className="py-4 px-6 font-medium text-slate-900 dark:text-white tabular-nums">{incident.time}</td>
                       <td className="py-4 px-6">
-                        <StatusBadge status={getCategoryBadge(incident.category) as any} label={incident.category} />
+                        <StatusBadge status={getCategoryBadge(incident.category)} label={incident.category} />
                       </td>
                       <td className="py-4 px-6">
                         <p className="text-slate-900 dark:text-white font-medium">{incident.description}</p>
                         <p className="text-slate-500 dark:text-text-secondary text-xs mt-0.5">{incident.location}</p>
                       </td>
                       <td className="py-4 px-6">
-                        <StatusBadge status={getSeverityBadge(incident.severity) as any} label={incident.severity} />
+                        <StatusBadge status={getSeverityBadge(incident.severity)} label={incident.severity} />
                       </td>
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-2">
@@ -168,7 +168,7 @@ const Reports: React.FC = () => {
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Categoria</span>
               <select
                 value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value as any)}
+                onChange={(e) => setNewCategory(e.target.value as Incident['category'])}
                 className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none"
               >
                 <option value="Segurança">Segurança</option>
@@ -181,7 +181,7 @@ const Reports: React.FC = () => {
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Gravidade</span>
               <select
                 value={newSeverity}
-                onChange={(e) => setNewSeverity(e.target.value as any)}
+                onChange={(e) => setNewSeverity(e.target.value as Incident['severity'])}
                 className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary outline-none"
               >
                 <option value="Normal">Normal</option>

@@ -19,7 +19,7 @@ const SwapList: React.FC = () => {
     reason: ''
   });
 
-  const getStatusVariant = (status: string) => {
+  const getStatusVariant = (status: string): 'approved' | 'pending' | 'denied' | 'normal' => {
     switch (status) {
       case 'Aprovado': return 'approved';
       case 'Pendente': return 'pending';
@@ -134,7 +134,7 @@ const SwapList: React.FC = () => {
                       </div>
                     </td>
                     <td className="p-4">
-                      <StatusBadge status={getStatusVariant(swap.status) as any} label={swap.status} />
+                      <StatusBadge status={getStatusVariant(swap.status)} label={swap.status} />
                     </td>
                     <td className="p-4 text-right">
                       <button
@@ -174,7 +174,7 @@ const SwapList: React.FC = () => {
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Data Solicitada</p>
               <p className="text-lg font-black text-slate-900 dark:text-white">{selectedSwap ? new Date(selectedSwap.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }) : ''}</p>
             </div>
-            <StatusBadge status={getStatusVariant(selectedSwap?.status || '') as any} label={selectedSwap?.status} size="md" />
+            <StatusBadge status={getStatusVariant(selectedSwap?.status || '')} label={selectedSwap?.status} size="md" />
           </div>
 
           <div className="flex items-center gap-4">

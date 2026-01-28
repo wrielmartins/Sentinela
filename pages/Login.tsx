@@ -45,8 +45,8 @@ const Login: React.FC = () => {
         if (signInError) throw signInError;
         // AppContext listener will handle redirection/state update
       }
-    } catch (err: any) {
-      setError(err.message || 'Ocorreu um erro');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Ocorreu um erro');
     } finally {
       setLoading(false);
     }

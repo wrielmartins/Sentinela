@@ -1,4 +1,4 @@
-import { User, UserRole } from '../types';
+import { User } from '../types';
 
 /**
  * Checks if the user has permission to edit the Daily Scale.

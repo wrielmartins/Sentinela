@@ -1,31 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import StatCard from '../components/StatCard';
 import { useApp } from '../context/AppContext';
-import { Post } from '../types';
+import { getTeamForDate, isSameDay } from '../utils/rotation';
 
 const Dashboard: React.FC = () => {
-  const { dayPosts, nightPosts, swaps, unitStatus, currentTeam, setCurrentTeam } = useApp();
+  const { dayPosts, nightPosts, swaps, unitStatus } = useApp();
   const [activeShift, setActiveShift] = useState<'day' | 'night'>('day');
   const [viewDate, setViewDate] = useState(new Date());
-  const [currentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(new Date());
+
+  // Real-time date update every minute
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentDate(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handlePrint = () => {
     window.print();
-  };
-
-  // Rotation Logic: 29/01/2026 is Team D (A=0, B=1, C=2, D=3)
-  const TEAMS = ['A', 'B', 'C', 'D'];
-  const REF_DATE = new Date(2026, 0, 29); // Jan 29, 2026
-
-  const getTeamForDate = (date: Date) => {
-    // Normalize dates to midnight for consistent day calculation
-    const d1 = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const d2 = new Date(REF_DATE.getFullYear(), REF_DATE.getMonth(), REF_DATE.getDate());
-    const diffTime = d1.getTime() - d2.getTime();
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-    let index = (3 + diffDays) % 4;
-    while (index < 0) index += 4;
-    return TEAMS[index];
   };
 
   const selectedTeam = `Equipe ${getTeamForDate(viewDate)}`;
@@ -50,14 +41,8 @@ const Dashboard: React.FC = () => {
     setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + offset, 1));
   };
 
-  const isSameDay = (d1: Date, d2: Date) =>
-    d1.getDate() === d2.getDate() &&
-    d1.getMonth() === d2.getMonth() &&
-    d1.getFullYear() === d2.getFullYear();
-
   const handleDayClick = (date: Date) => {
     setViewDate(date);
-    setCurrentTeam(`Equipe ${getTeamForDate(date)}`);
   };
 
   return (
@@ -92,7 +77,7 @@ const Dashboard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <StatCard
               title="Equipe no Plantão"
-              value={currentTeam}
+              value={selectedTeam}
               icon="groups"
               iconColor="text-primary"
               subtitle="Escala Ordinária (24h)"
@@ -227,7 +212,8 @@ const Dashboard: React.FC = () => {
                   {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                     const date = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
                     const team = getTeamForDate(date);
-                    const isToday = isSameDay(date, new Date());
+                    const today = new Date();
+                    const isItToday = isSameDay(date, today);
                     const isSelected = isSameDay(date, viewDate);
 
                     return (
@@ -235,16 +221,16 @@ const Dashboard: React.FC = () => {
                         key={day}
                         onClick={() => handleDayClick(date)}
                         className={`relative flex flex-col items-center justify-center h-10 rounded-lg transition-all group ${isSelected ? 'bg-primary text-white shadow-lg shadow-primary/30' :
-                          isToday ? 'border border-primary/50 text-white' : 'text-slate-400 hover:bg-slate-800'
+                            isItToday ? 'border border-primary/50 text-white' : 'text-slate-400 hover:bg-slate-800'
                           }`}
                       >
-                        <span className={`text-[11px] font-black ${isSelected ? 'text-white' : isToday ? 'text-primary' : ''}`}>
+                        <span className={`text-[11px] font-black ${isSelected ? 'text-white' : isItToday ? 'text-primary' : ''}`}>
                           {day}
                         </span>
                         <span className={`text-[8px] font-black uppercase mt-0.5 ${isSelected ? 'text-white/70' :
-                          team === 'A' ? 'text-emerald-500' :
-                            team === 'B' ? 'text-blue-500' :
-                              team === 'C' ? 'text-yellow-500' : 'text-purple-500'
+                            team === 'A' ? 'text-emerald-500' :
+                              team === 'B' ? 'text-blue-500' :
+                                team === 'C' ? 'text-yellow-500' : 'text-purple-500'
                           }`}>
                           {team}
                         </span>

@@ -3,7 +3,7 @@ import { canEditScale, canManageSwaps } from './permissions';
 import { User } from '../types';
 
 describe('RBAC Permissions', () => {
-    const mockUser = (role: any, team?: any): User => ({
+    const mockUser = (role: User['role'], team?: string): User => ({
         id: '1', name: 'Test', role, team, avatar: ''
     });
 

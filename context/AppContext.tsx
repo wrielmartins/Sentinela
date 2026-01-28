@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { User, Incident, SwapRequest, Post } from '../types';
+import { getTeamForDate } from '../utils/rotation';
 
 interface AppContextData {
     user: User | null;
@@ -118,16 +119,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // Global Team Rotation Logic
     const getInitialTeam = () => {
-        const TEAMS = ['A', 'B', 'C', 'D'];
-        const REF_DATE = new Date(2026, 0, 29); // Jan 29, 2026
-        const now = new Date();
-        const d1 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const d2 = new Date(REF_DATE.getFullYear(), REF_DATE.getMonth(), REF_DATE.getDate());
-        const diffTime = d1.getTime() - d2.getTime();
-        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-        let index = (3 + diffDays) % 4;
-        while (index < 0) index += 4;
-        return `Equipe ${TEAMS[index]}`;
+        return `Equipe ${getTeamForDate(new Date())}`;
     };
 
     const [currentTeam, setCurrentTeam] = useState<string>(getInitialTeam());
@@ -159,7 +151,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const fetchProfile = async (userId: string, email?: string) => {
         try {
-            const { data, error } = await supabase
+            const { data } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', userId)
@@ -273,6 +265,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useApp = () => {
     const context = useContext(AppContext);
     if (context === undefined) {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ModalProps {
@@ -11,10 +11,7 @@ interface ModalProps {
 }
 
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, actions, size = 'md' }) => {
-    const [mounted, setMounted] = useState(false);
-
     useEffect(() => {
-        setMounted(true);
         if (isOpen) {
             document.body.style.overflow = 'hidden';
         } else {
@@ -25,7 +22,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, actions
         };
     }, [isOpen]);
 
-    if (!mounted || !isOpen) return null;
+    if (!isOpen) return null;
 
     const sizeClasses = {
         sm: 'max-w-md',
